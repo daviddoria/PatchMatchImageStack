@@ -52,7 +52,11 @@ void PatchMatch::parse(vector<string> args) {
 
     Image result;                     
 
-    result = apply(stack(0), stack(1), numIter, patchSize);
+    //result = apply(stack(0), stack(1), numIter, patchSize); // no mask
+    std::cout << "stack(0) has " << stack(0).channels << std::endl;
+    std::cout << "stack(1) has " << stack(1).channels << std::endl;
+    std::cout << "stack(2) has " << stack(2).channels << std::endl;
+    result = apply(stack(1), stack(2), stack(0), numIter, patchSize); // with mask as third image to be loaded (-load)
 
     push(result);
 }
@@ -68,6 +72,7 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
                target.height == mask.height &&
                target.frames == mask.frames, 
                "Mask must have the same dimensions as the target\n");
+        std::cout << "mask has " << mask.channels << " channels." << std::endl;
         assert(mask.channels == 1,
                "Mask must have a single channel\n");
     }
