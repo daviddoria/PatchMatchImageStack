@@ -1,4 +1,3 @@
-
 // CS448F final project
 // Implementation of PatchMatch algorithm and its applications
 // Sung Hee Park (shpark7@stanford.edu)
@@ -17,7 +16,6 @@
 #include "Filter.h"
 #include "Paint.h"
 #include "header.h"
-// PATCHMATCH =============================================================//
 
 void PatchMatch::help() {
 
@@ -41,15 +39,18 @@ void PatchMatch::help() {
     // this code it is stored as absolute locations of the best matching patches.
 }
 
-void PatchMatch::parse(vector<string> args) {
+void PatchMatch::parse(vector<string> args)
+{
 
     int numIter = 5, patchSize = 7;
 
     assert(args.size() <= 2, "-patchmatch takes two or fewer arguments\n");
-    if (args.size() == 2) {
+    if (args.size() == 2)
+    {
         numIter = readInt(args[0]);
         patchSize = (int) readInt(args[1]);
-    } else if (args.size() == 1) {
+    } else if (args.size() == 1)
+    {
         numIter = readInt(args[0]);
     }
 
@@ -64,20 +65,22 @@ void PatchMatch::parse(vector<string> args) {
     push(result);
 }
 
-Image PatchMatch::apply(Window source, Window target, int iterations, int patchSize) {
+Image PatchMatch::apply(Window source, Window target, int iterations, int patchSize)
+{
     return apply(source, target, Window(), iterations, patchSize);
 }
 
-Image PatchMatch::apply(Window source, Window target, Window mask, int iterations, int patchSize) {
+Image PatchMatch::apply(Window source, Window target, Window mask, int iterations, int patchSize)
+{
 
-    if (mask) {
-        assert(target.width == mask.width &&
-               target.height == mask.height &&
-               target.frames == mask.frames, 
-               "Mask must have the same dimensions as the target\n");
-        std::cout << "mask has " << mask.channels << " channels." << std::endl;
-        assert(mask.channels == 1,
-               "Mask must have a single channel\n");
+    if (mask)
+    {
+      assert(target.width == mask.width &&
+              target.height == mask.height &&
+              target.frames == mask.frames,
+              "Mask must have the same dimensions as the target\n");
+      std::cout << "mask has " << mask.channels << " channels." << std::endl;
+      assert(mask.channels == 1, "Mask must have a single channel\n");
     }
     assert(iterations > 0, "Iterations must be a strictly positive integer\n");
     assert(patchSize >= 3 && (patchSize & 1), "Patch size must be at least 3 and odd\n");
@@ -97,19 +100,21 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
     int t = 0; // We are only dealing with single frame images (non-video)
     
     // INITIALIZATION - uniform random assignment
-    for(int y = 0; y < source.height; y++) {
-        for(int x = 0; x < source.width; x++) {
-            int dx = randomInt(patchSize, target.width-patchSize-1);
-            int dy = randomInt(patchSize, target.height-patchSize-1);
-            int dt = randomInt(0, target.frames-1);
-            *outPtr++ = dx;
-            *outPtr++ = dy;
-            *outPtr++ = dt;
-            *outPtr++ = distance(source, target, mask,
-                                  t, x, y,
-                                  dt, dx, dy,
-                                  patchSize, HUGE_VAL);
-        }
+    for(int y = 0; y < source.height; y++)
+    {
+      for(int x = 0; x < source.width; x++)
+      {
+          int dx = randomInt(patchSize, target.width-patchSize-1);
+          int dy = randomInt(patchSize, target.height-patchSize-1);
+          int dt = randomInt(0, target.frames-1);
+          *outPtr++ = dx;
+          *outPtr++ = dy;
+          *outPtr++ = dt;
+          *outPtr++ = distance(source, target, mask,
+                                t, x, y,
+                                dt, dx, dy,
+                                patchSize, HUGE_VAL);
+      }
     }
     
 
@@ -122,156 +127,150 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
       // PROPAGATION
       if (forwardSearch)
       {
-          // Forward propagation - compare left, center and up
-          //for (int t = 0; t < source.frames; t++) {
-              for(int y = 1; y < source.height; y++)
-              {
-                  outPtr = out(1, y, t);
-                  float *leftPtr = out(0, y, t);
-                  float *upPtr = out(1, y-1, t);
-                  for(int x = 1; x < source.width; x++)
-                  {
-
-                      if (outPtr[3] > 0)
-                      {
-                          float distLeft = distance(source, target, mask,
-                                                    t, x, y,
-                                                    leftPtr[2], leftPtr[0]+1, leftPtr[1],
-                                                    patchSize, outPtr[3]);
-
-                          if (distLeft < outPtr[3])
-                          {
-                              outPtr[0] = leftPtr[0]+1;
-                              outPtr[1] = leftPtr[1];
-                              outPtr[2] = leftPtr[2];
-                              outPtr[3] = distLeft;
-                          }
-
-                          float distUp = distance(source, target, mask,
-                                                  t, x, y,
-                                                  upPtr[2], upPtr[0], upPtr[1]+1,
-                                                  patchSize, outPtr[3]);
-
-                          if (distUp < outPtr[3])
-                          {
-                              outPtr[0] = upPtr[0];
-                              outPtr[1] = upPtr[1]+1;
-                              outPtr[2] = upPtr[2];
-                              outPtr[3] = distUp;
-                          }
-                      }
-
-                      outPtr += 4;
-                      leftPtr += 4;
-                      upPtr += 4;
-
-                  }
-              }
-          
-
-        }
-        else
-        {                
-          // Backward propagation - compare right, center and down
-
-              for(int y = source.height-2; y >= 0; y--)
-              {
-                  outPtr = out(source.width-2, y, t);
-                  float *rightPtr = out(source.width-1, y, t);
-                  float *downPtr = out(source.width-2, y+1, t);
-                  for(int x = source.width-2; x >= 0; x--)
-                  {
-                      if (outPtr[3] > 0)
-                      {
-                          float distRight = distance(source, target, mask,
-                                                      t, x, y,
-                                                      rightPtr[2], rightPtr[0]-1, rightPtr[1],
-                                                      patchSize, outPtr[3]);
-
-                          if (distRight < outPtr[3])
-                          {
-                              outPtr[0] = rightPtr[0]-1;
-                              outPtr[1] = rightPtr[1];
-                              outPtr[2] = rightPtr[2];
-                              outPtr[3] = distRight;
-                          }
-
-                          float distDown = distance(source, target, mask,
-                                                    t, x, y,
-                                                    downPtr[2], downPtr[0], downPtr[1]-1,
-                                                    patchSize, outPtr[3]);
-
-                          if (distDown < outPtr[3])
-                          {
-                              outPtr[0] = downPtr[0];
-                              outPtr[1] = downPtr[1]-1;
-                              outPtr[2] = downPtr[2];
-                              outPtr[3] = distDown;
-                          }
-                      }
-
-                      outPtr -= 4;
-                      rightPtr -= 4;
-                      downPtr -= 4;
-                  }
-              }
-          
-        }            
-
-        forwardSearch = !forwardSearch;
-
-        // RANDOM SEARCH
-        float *outPtr = out(0, 0, 0);
-
-        for(int y = 0; y < source.height; y++)
+        // Forward propagation - compare left, center and up
+        //for (int t = 0; t < source.frames; t++) {
+        for(int y = 1; y < source.height; y++)
         {
-          for(int x = 0; x < source.width; x++)
+          outPtr = out(1, y, t);
+          float *leftPtr = out(0, y, t);
+          float *upPtr = out(1, y-1, t);
+          for(int x = 1; x < source.width; x++)
           {
-
             if (outPtr[3] > 0)
             {
+              float distLeft = distance(source, target, mask,
+                                        t, x, y,
+                                        leftPtr[2], leftPtr[0]+1, leftPtr[1],
+                                        patchSize, outPtr[3]);
 
-              int radius = target.width > target.height ? target.width : target.height;
-
-              // search an exponentially smaller window each iteration
-              while (radius > 8)
+              if (distLeft < outPtr[3])
               {
-                // Search around current offset vector (distance-weighted)
-
-                // clamp the search window to the image
-                int minX = (int)outPtr[0] - radius;
-                int maxX = (int)outPtr[0] + radius + 1;
-                int minY = (int)outPtr[1] - radius;
-                int maxY = (int)outPtr[1] + radius + 1;
-                if (minX < 0) minX = 0;
-                if (maxX > target.width) maxX = target.width;
-                if (minY < 0) minY = 0;
-                if (maxY > target.height) maxY = target.height;
-
-                int randX = rand() % (maxX - minX) + minX;
-                int randY = rand() % (maxY - minY) + minY;
-                int randT = rand() % target.frames;
-                float dist = distance(source, target, mask,
-                                      t, x, y,
-                                      randT, randX, randY,
-                                      patchSize, outPtr[3]);
-                if (dist < outPtr[3])
-                {
-                  outPtr[0] = randX;
-                  outPtr[1] = randY;
-                  outPtr[2] = randT;
-                  outPtr[3] = dist;
-                }
-
-                radius >>= 1;
-
+                  outPtr[0] = leftPtr[0]+1;
+                  outPtr[1] = leftPtr[1];
+                  outPtr[2] = leftPtr[2];
+                  outPtr[3] = distLeft;
               }
-            }
-            outPtr += 4;
-          }
-      }
 
-    }
+              float distUp = distance(source, target, mask,
+                                      t, x, y,
+                                      upPtr[2], upPtr[0], upPtr[1]+1,
+                                      patchSize, outPtr[3]);
+
+              if (distUp < outPtr[3])
+              {
+                  outPtr[0] = upPtr[0];
+                  outPtr[1] = upPtr[1]+1;
+                  outPtr[2] = upPtr[2];
+                  outPtr[3] = distUp;
+              }
+            } // end if (outPtr[3] > 0)
+
+            outPtr += 4;
+            leftPtr += 4;
+            upPtr += 4;
+
+          } // end for(int x = 1; x < source.width; x++)
+        } // end for(int y = 1; y < source.height; y++)
+      } // end if (forwardSearch)
+      else
+      {
+        // Backward propagation - compare right, center and down
+
+        for(int y = source.height-2; y >= 0; y--)
+        {
+          outPtr = out(source.width-2, y, t);
+          float *rightPtr = out(source.width-1, y, t);
+          float *downPtr = out(source.width-2, y+1, t);
+          for(int x = source.width-2; x >= 0; x--)
+          {
+            if (outPtr[3] > 0)
+            {
+              float distRight = distance(source, target, mask,
+                                          t, x, y,
+                                          rightPtr[2], rightPtr[0]-1, rightPtr[1],
+                                          patchSize, outPtr[3]);
+
+              if (distRight < outPtr[3])
+              {
+                  outPtr[0] = rightPtr[0]-1;
+                  outPtr[1] = rightPtr[1];
+                  outPtr[2] = rightPtr[2];
+                  outPtr[3] = distRight;
+              }
+
+              float distDown = distance(source, target, mask,
+                                        t, x, y,
+                                        downPtr[2], downPtr[0], downPtr[1]-1,
+                                        patchSize, outPtr[3]);
+
+              if (distDown < outPtr[3])
+              {
+                  outPtr[0] = downPtr[0];
+                  outPtr[1] = downPtr[1]-1;
+                  outPtr[2] = downPtr[2];
+                  outPtr[3] = distDown;
+              }
+            } // end if (outPtr[3] > 0)
+
+            outPtr -= 4;
+            rightPtr -= 4;
+            downPtr -= 4;
+          } // end for(int x = source.width-2; x >= 0; x--)
+        } // end for(int y = source.height-2; y >= 0; y--)
+      } // end else
+
+      forwardSearch = !forwardSearch;
+
+      // RANDOM SEARCH
+      float *outPtr = out(0, 0, 0);
+
+      for(int y = 0; y < source.height; y++)
+      {
+        for(int x = 0; x < source.width; x++)
+        {
+
+          if (outPtr[3] > 0)
+          {
+            int radius = target.width > target.height ? target.width : target.height;
+
+            // search an exponentially smaller window each iteration
+            while (radius > 8)
+            {
+              // Search around current offset vector (distance-weighted)
+
+              // clamp the search window to the image
+              int minX = (int)outPtr[0] - radius;
+              int maxX = (int)outPtr[0] + radius + 1;
+              int minY = (int)outPtr[1] - radius;
+              int maxY = (int)outPtr[1] + radius + 1;
+              if (minX < 0) minX = 0;
+              if (maxX > target.width) maxX = target.width;
+              if (minY < 0) minY = 0;
+              if (maxY > target.height) maxY = target.height;
+
+              int randX = rand() % (maxX - minX) + minX;
+              int randY = rand() % (maxY - minY) + minY;
+              int randT = rand() % target.frames;
+              float dist = distance(source, target, mask,
+                                    t, x, y,
+                                    randT, randX, randY,
+                                    patchSize, outPtr[3]);
+              if (dist < outPtr[3])
+              {
+                outPtr[0] = randX;
+                outPtr[1] = randY;
+                outPtr[2] = randT;
+                outPtr[3] = dist;
+              }
+
+              radius >>= 1;
+
+            } // end while (radius > 8)
+          } // end if (outPtr[3] > 0)
+          outPtr += 4;
+        } // end for x
+      } // end for y
+    } // end for (int i = 0; i < iterations; i++)
 
     typedef itk::VectorImage<float, 2> ImageType;
     ImageType::Pointer itkimage = ImageType::New();
@@ -311,7 +310,6 @@ float PatchMatch::distance(Window source, Window target, Window mask,
                            int tt, int tx, int ty,
                            int patchSize, float prevDist)
 {
-
     // Do not use patches on boundaries
     if (tx < patchSize || tx >= target.width-patchSize || 
         ty < patchSize || ty >= target.height-patchSize)
@@ -339,40 +337,39 @@ float PatchMatch::distance(Window source, Window target, Window mask,
 
     for(int y = y1; y <= y2; y++)
     {
+      float *pSource = source(sx+x1, sy+y, st);
+      float *pTarget = target(tx+x1, ty+y, tt);
+      float *pMask = NULL;
+      if (mask)
+      {
+        pMask = mask(tx+x1, ty+y, tt);
+      }
 
-        float *pSource = source(sx+x1, sy+y, st);
-        float *pTarget = target(tx+x1, ty+y, tt);
-        float *pMask = NULL;
+      for (int i = 0; i <= x2-x1; i++)
+      {
+        float d = 0;
+        float w = mask ? pMask[0] : 1; // If there is a mask, set the weight to the mask value. If not, set all weights to 1.
+        assert(w >= 0, "Negative w %f\n", w);
+        for (int j = 0; j < target.channels; j++)
+        {
+          d += w*(*pSource - *pTarget)*(*pSource - *pTarget);
+          weight += w;
+          pSource++; pTarget++;
+        }
+
         if (mask)
         {
-          pMask = mask(tx+x1, ty+y, tt);
+          pMask++;
         }
 
-        for (int i = 0; i <= x2-x1; i++)
+        dist += d;
+
+        // Early termination
+        if (dist > threshold)
         {
-            float d = 0;
-            float w = mask ? pMask[0] : 1; // If there is a mask, set the weight to the mask value. If not, set all weights to 1.
-            assert(w >= 0, "Negative w %f\n", w);
-            for (int j = 0; j < target.channels; j++)
-            {
-              d += w*(*pSource - *pTarget)*(*pSource - *pTarget);
-              weight += w;
-              pSource++; pTarget++;
-            }
-
-            if (mask)
-            {
-              pMask++;
-            }
-
-            dist += d;
-
-            // Early termination
-            if (dist > threshold)
-            {
-              return HUGE_VAL;
-            }
+          return HUGE_VAL;
         }
+      }
     }
 
     assert(dist >= 0, "negative dist\n");
