@@ -22,6 +22,7 @@ PatchMatch.cpp
 Prediction.cpp # has Inpaint()
 Stack.cpp
 Statistics.cpp
+BidirectionalSimilarity.cpp
 )
 
 TARGET_LINK_LIBRARIES(ImageStack tiff png jpeg fftw3f ${ITK_LIBRARIES}) # jpeg is required when building with ITK? Strange...

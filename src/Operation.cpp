@@ -23,6 +23,7 @@
 #include "Prediction.h"
 #include "Filter.h"
 #include "PatchMatch.h"
+#include "BidirectionalSimilarity.h"
 #include "LAHBPCG.h"
 
 #include "header.h"

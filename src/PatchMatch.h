@@ -17,24 +17,5 @@ class PatchMatch : public Operation {
     
 };
 
-
-
-class BidirectionalSimilarity : public Operation {
-  public:
-    void help();
-    void parse(vector<string> args);
-    static void apply(Window source, Window target, 
-                      Window sourceMask, Window targetMask,
-                      float alpha, int numIter, int numIterPM = 5);    
-    
-};
-
-
-class Heal : public Operation {
-  public:
-    void help();
-    void parse(vector<string> args);                      
-};
-
 #include "footer.h"
 #endif
