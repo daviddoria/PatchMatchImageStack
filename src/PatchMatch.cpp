@@ -267,6 +267,21 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
       } // end for y
     } // end for (int i = 0; i < iterations; i++)
 
+    // Zero the boundary
+    for(int y = 0; y < source.height; ++y)
+    {
+      for(int x = 0; x < source.width; ++x)
+      {
+        if (x < patchSize || x >= target.width-patchSize ||
+            y < patchSize || y >= target.height-patchSize)
+        {
+          out(x,y)[0] = 0.0f;
+          out(x,y)[1] = 0.0f;
+          out(x,y)[2] = 0.0f;
+        }
+      }
+    }
+
     typedef itk::VectorImage<float, 2> ImageType;
     ImageType::Pointer itkimage = ImageType::New();
     itk::Index<2> itkcorner = {{0,0}};
@@ -291,7 +306,7 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
       ++imageIterator;
       }
 
-    typedef  itk::ImageFileWriter< ImageType  > WriterType;
+    typedef  itk::ImageFileWriter<ImageType> WriterType;
     WriterType::Pointer writer = WriterType::New();
     writer->SetFileName("nnfield.mha");
     writer->SetInput(itkimage);
@@ -300,10 +315,6 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
     return out;
 }
 
-// float PatchMatch::distance(Window source, Window target, Window mask,
-//                            int st, int sx, int sy, 
-//                            int tt, int tx, int ty,
-//                            int patchSize, float prevDist)
 float PatchMatch::distance(Window source, Window target, Window mask,
                            int sx, int sy,
                            int tx, int ty,

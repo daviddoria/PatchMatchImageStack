@@ -2,23 +2,22 @@
 #define IMAGESTACK_PATCHMATCH_H
 #include "header.h"
 
-class PatchMatch : public Operation {
-  public:
-    void help();
-    void parse(vector<string> args);
-    static Image apply(Window source, Window target, int iterations, int patchSize);    
-    static Image apply(Window source, Window target, Window mask, int iterations, int patchSize);    
+class PatchMatch : public Operation
+{
+public:
 
-  private:
-//     static float distance(Window source, Window target, Window mask,
-//                           int st, int sx, int sy,
-//                           int tt, int tx, int ty,
-//                           int patchSize, float prevDist);
-    static float distance(Window source, Window target, Window mask,
-                          int sx, int sy,
-                          int tx, int ty,
-                          int patchSize, float prevDist);
-    
+  void help();
+  void parse(vector<string> args);
+  static Image apply(Window source, Window target, int iterations, int patchSize);
+  static Image apply(Window source, Window target, Window mask, int iterations, int patchSize);
+
+private:
+
+  static float distance(Window source, Window target, Window mask,
+                        int sx, int sy,
+                        int tx, int ty,
+                        int patchSize, float prevDist);
+
 };
 
 #include "footer.h"
