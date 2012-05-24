@@ -1,0 +1,1 @@
+ImageStack -load dog1_mask.png -load dog1.png -inpaint -save dog1_inpainted.png
