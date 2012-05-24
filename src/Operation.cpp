@@ -22,7 +22,6 @@
 #include "DFT.h"
 #include "Prediction.h"
 #include "Filter.h"
-#include "HDR.h"
 #include "PatchMatch.h"
 #include "LAHBPCG.h"
 

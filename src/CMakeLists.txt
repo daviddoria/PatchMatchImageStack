@@ -12,7 +12,6 @@ FilePNG.cpp
 FileTMP.cpp
 Filter.cpp
 Geometry.cpp
-HDR.cpp
 Image.cpp
 LAHBPCG.cpp
 main.cpp
