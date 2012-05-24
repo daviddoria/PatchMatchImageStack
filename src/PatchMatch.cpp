@@ -49,7 +49,8 @@ void PatchMatch::parse(vector<string> args)
     {
         numIter = readInt(args[0]);
         patchSize = (int) readInt(args[1]);
-    } else if (args.size() == 1)
+    }
+    else if (args.size() == 1)
     {
         numIter = readInt(args[0]);
     }
@@ -81,6 +82,8 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
               "Mask must have the same dimensions as the target\n");
       std::cout << "mask has " << mask.channels << " channels." << std::endl;
       assert(mask.channels == 1, "Mask must have a single channel\n");
+      assert(target.frames == 1, "Target must have a single frame (non-video)\n");
+      assert(source.frames == 1, "Source must have a single frame (non-video)\n");
     }
     assert(iterations > 0, "Iterations must be a strictly positive integer\n");
     assert(patchSize >= 3 && (patchSize & 1), "Patch size must be at least 3 and odd\n");
@@ -88,32 +91,30 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
     // convert patch diameter to patch radius
     patchSize /= 2;
 
-    // For each source pixel, output a 3-vector to the best match in
-    // the target, with an error as the last channel.
-    Image out(source.width, source.height, source.frames, 4);
-    
+    // For each source pixel, output a 2-vector (x coord, y coord, error)to the best match in
+    // the target.
+    Image out(source.width, source.height, 1, 3); // 1 frame, 3 channels (x,y,error)
+
     // Iterate over source frames, finding a match in the target where
     // the mask is high
-    
+
     float *outPtr = out(0, 0, 0);
-    //for (int t = 0; t < source.frames; t++) {
+
     int t = 0; // We are only dealing with single frame images (non-video)
-    
+
     // INITIALIZATION - uniform random assignment
     for(int y = 0; y < source.height; y++)
     {
       for(int x = 0; x < source.width; x++)
       {
-          int dx = randomInt(patchSize, target.width-patchSize-1);
-          int dy = randomInt(patchSize, target.height-patchSize-1);
-          int dt = randomInt(0, target.frames-1);
-          *outPtr++ = dx;
-          *outPtr++ = dy;
-          *outPtr++ = dt;
-          *outPtr++ = distance(source, target, mask,
-                                t, x, y,
-                                dt, dx, dy,
-                                patchSize, HUGE_VAL);
+        int dx = randomInt(patchSize, target.width-patchSize-1);
+        int dy = randomInt(patchSize, target.height-patchSize-1);
+        *outPtr++ = dx;
+        *outPtr++ = dy;
+        *outPtr++ = distance(source, target, mask,
+                              x, y,
+                              dx, dy,
+                              patchSize, HUGE_VAL);
       }
     }
     
@@ -136,38 +137,36 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
           float *upPtr = out(1, y-1, t);
           for(int x = 1; x < source.width; x++)
           {
-            if (outPtr[3] > 0)
+            if (outPtr[2] > 0)
             {
               float distLeft = distance(source, target, mask,
-                                        t, x, y,
-                                        leftPtr[2], leftPtr[0]+1, leftPtr[1],
+                                        x, y,
+                                        leftPtr[0]+1, leftPtr[1],
                                         patchSize, outPtr[3]);
 
               if (distLeft < outPtr[3])
               {
                   outPtr[0] = leftPtr[0]+1;
                   outPtr[1] = leftPtr[1];
-                  outPtr[2] = leftPtr[2];
-                  outPtr[3] = distLeft;
+                  outPtr[2] = distLeft;
               }
 
               float distUp = distance(source, target, mask,
-                                      t, x, y,
-                                      upPtr[2], upPtr[0], upPtr[1]+1,
+                                      x, y,
+                                      upPtr[0], upPtr[1]+1,
                                       patchSize, outPtr[3]);
 
-              if (distUp < outPtr[3])
+              if (distUp < outPtr[2])
               {
                   outPtr[0] = upPtr[0];
                   outPtr[1] = upPtr[1]+1;
-                  outPtr[2] = upPtr[2];
-                  outPtr[3] = distUp;
+                  outPtr[2] = distUp;
               }
             } // end if (outPtr[3] > 0)
 
-            outPtr += 4;
-            leftPtr += 4;
-            upPtr += 4;
+            outPtr += 3;
+            leftPtr += 3;
+            upPtr += 3;
 
           } // end for(int x = 1; x < source.width; x++)
         } // end for(int y = 1; y < source.height; y++)
@@ -183,38 +182,36 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
           float *downPtr = out(source.width-2, y+1, t);
           for(int x = source.width-2; x >= 0; x--)
           {
-            if (outPtr[3] > 0)
+            if (outPtr[2] > 0)
             {
               float distRight = distance(source, target, mask,
-                                          t, x, y,
-                                          rightPtr[2], rightPtr[0]-1, rightPtr[1],
+                                          x, y,
+                                          rightPtr[0]-1, rightPtr[1],
                                           patchSize, outPtr[3]);
 
-              if (distRight < outPtr[3])
+              if (distRight < outPtr[2])
               {
                   outPtr[0] = rightPtr[0]-1;
                   outPtr[1] = rightPtr[1];
-                  outPtr[2] = rightPtr[2];
-                  outPtr[3] = distRight;
+                  outPtr[2] = distRight;
               }
 
               float distDown = distance(source, target, mask,
-                                        t, x, y,
-                                        downPtr[2], downPtr[0], downPtr[1]-1,
+                                        x, y,
+                                        downPtr[0], downPtr[1]-1,
                                         patchSize, outPtr[3]);
 
-              if (distDown < outPtr[3])
+              if (distDown < outPtr[2])
               {
                   outPtr[0] = downPtr[0];
                   outPtr[1] = downPtr[1]-1;
-                  outPtr[2] = downPtr[2];
-                  outPtr[3] = distDown;
+                  outPtr[2] = distDown;
               }
             } // end if (outPtr[3] > 0)
 
-            outPtr -= 4;
-            rightPtr -= 4;
-            downPtr -= 4;
+            outPtr -= 3;
+            rightPtr -= 3;
+            downPtr -= 3;
           } // end for(int x = source.width-2; x >= 0; x--)
         } // end for(int y = source.height-2; y >= 0; y--)
       } // end else
@@ -224,12 +221,12 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
       // RANDOM SEARCH
       float *outPtr = out(0, 0, 0);
 
-      for(int y = 0; y < source.height; y++)
+      for(int y = 0; y < source.height; ++y)
       {
-        for(int x = 0; x < source.width; x++)
+        for(int x = 0; x < source.width; ++x)
         {
 
-          if (outPtr[3] > 0)
+          if (outPtr[2] > 0)
           {
             int radius = target.width > target.height ? target.width : target.height;
 
@@ -250,24 +247,22 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
 
               int randX = rand() % (maxX - minX) + minX;
               int randY = rand() % (maxY - minY) + minY;
-              int randT = rand() % target.frames;
               float dist = distance(source, target, mask,
-                                    t, x, y,
-                                    randT, randX, randY,
+                                    x, y,
+                                    randX, randY,
                                     patchSize, outPtr[3]);
-              if (dist < outPtr[3])
+              if (dist < outPtr[2])
               {
                 outPtr[0] = randX;
                 outPtr[1] = randY;
-                outPtr[2] = randT;
-                outPtr[3] = dist;
+                outPtr[2] = dist;
               }
 
               radius >>= 1;
 
             } // end while (radius > 8)
           } // end if (outPtr[3] > 0)
-          outPtr += 4;
+          outPtr += 3;
         } // end for x
       } // end for y
     } // end for (int i = 0; i < iterations; i++)
@@ -305,9 +300,13 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
     return out;
 }
 
+// float PatchMatch::distance(Window source, Window target, Window mask,
+//                            int st, int sx, int sy, 
+//                            int tt, int tx, int ty,
+//                            int patchSize, float prevDist)
 float PatchMatch::distance(Window source, Window target, Window mask,
-                           int st, int sx, int sy, 
-                           int tt, int tx, int ty,
+                           int sx, int sy,
+                           int tx, int ty,
                            int patchSize, float prevDist)
 {
     // Do not use patches on boundaries
@@ -324,6 +323,7 @@ float PatchMatch::distance(Window source, Window target, Window mask,
 
     float threshold = prevDist*target.channels*(2*patchSize+1)*(2*patchSize+1);
 
+    // Define the patch region that is inside of the image (defined by two corners, (x1, y1) and (x2, y2) )
     int x1 = max(-patchSize, -sx, -tx);
     int x2 = min(patchSize, -sx+source.width-1, -tx+target.width-1);
     int y1 = max(-patchSize, -sy, -ty);
@@ -337,12 +337,12 @@ float PatchMatch::distance(Window source, Window target, Window mask,
 
     for(int y = y1; y <= y2; y++)
     {
-      float *pSource = source(sx+x1, sy+y, st);
-      float *pTarget = target(tx+x1, ty+y, tt);
+      float *pSource = source(sx+x1, sy+y);
+      float *pTarget = target(tx+x1, ty+y);
       float *pMask = NULL;
       if (mask)
       {
-        pMask = mask(tx+x1, ty+y, tt);
+        pMask = mask(tx+x1, ty+y);
       }
 
       for (int i = 0; i <= x2-x1; i++)

@@ -10,9 +10,13 @@ class PatchMatch : public Operation {
     static Image apply(Window source, Window target, Window mask, int iterations, int patchSize);    
 
   private:
+//     static float distance(Window source, Window target, Window mask,
+//                           int st, int sx, int sy,
+//                           int tt, int tx, int ty,
+//                           int patchSize, float prevDist);
     static float distance(Window source, Window target, Window mask,
-                          int st, int sx, int sy,
-                          int tt, int tx, int ty,
+                          int sx, int sy,
+                          int tx, int ty,
                           int patchSize, float prevDist);
     
 };
