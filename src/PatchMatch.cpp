@@ -95,12 +95,11 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
     // the target.
     Image out(source.width, source.height, 1, 3); // 1 frame, 3 channels (x,y,error)
 
+    unsigned int errorChannel = out.channels - 1; // The last channel (e.g. channel 2 (0-indexed) in a 3-channel image) is the error
     // Iterate over source frames, finding a match in the target where
     // the mask is high
 
-    float *outPtr = out(0, 0, 0);
-
-    int t = 0; // We are only dealing with single frame images (non-video)
+    float *outPtr = out(0, 0);
 
     // INITIALIZATION - uniform random assignment
     for(int y = 0; y < source.height; y++)
@@ -129,44 +128,43 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
       if (forwardSearch)
       {
         // Forward propagation - compare left, center and up
-        //for (int t = 0; t < source.frames; t++) {
-        for(int y = 1; y < source.height; y++)
+        for(int y = 1; y < source.height; ++y)
         {
-          outPtr = out(1, y, t);
-          float *leftPtr = out(0, y, t);
-          float *upPtr = out(1, y-1, t);
-          for(int x = 1; x < source.width; x++)
+          outPtr = out(1, y);
+          float *leftPtr = out(0, y);
+          float *upPtr = out(1, y-1);
+          for(int x = 1; x < source.width; ++x)
           {
-            if (outPtr[2] > 0)
+            if (outPtr[errorChannel] > 0)
             {
               float distLeft = distance(source, target, mask,
                                         x, y,
                                         leftPtr[0]+1, leftPtr[1],
-                                        patchSize, outPtr[3]);
+                                        patchSize, outPtr[errorChannel]);
 
-              if (distLeft < outPtr[3])
+              if (distLeft < outPtr[errorChannel])
               {
                   outPtr[0] = leftPtr[0]+1;
                   outPtr[1] = leftPtr[1];
-                  outPtr[2] = distLeft;
+                  outPtr[errorChannel] = distLeft;
               }
 
               float distUp = distance(source, target, mask,
                                       x, y,
                                       upPtr[0], upPtr[1]+1,
-                                      patchSize, outPtr[3]);
+                                      patchSize, outPtr[errorChannel]);
 
-              if (distUp < outPtr[2])
+              if (distUp < outPtr[errorChannel])
               {
                   outPtr[0] = upPtr[0];
                   outPtr[1] = upPtr[1]+1;
-                  outPtr[2] = distUp;
+                  outPtr[errorChannel] = distUp;
               }
             } // end if (outPtr[3] > 0)
 
-            outPtr += 3;
-            leftPtr += 3;
-            upPtr += 3;
+            outPtr += out.channels;
+            leftPtr += out.channels;
+            upPtr += out.channels;
 
           } // end for(int x = 1; x < source.width; x++)
         } // end for(int y = 1; y < source.height; y++)
@@ -175,43 +173,43 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
       {
         // Backward propagation - compare right, center and down
 
-        for(int y = source.height-2; y >= 0; y--)
+        for(int y = source.height-2; y >= 0; --y)
         {
-          outPtr = out(source.width-2, y, t);
-          float *rightPtr = out(source.width-1, y, t);
-          float *downPtr = out(source.width-2, y+1, t);
-          for(int x = source.width-2; x >= 0; x--)
+          outPtr = out(source.width-2, y);
+          float *rightPtr = out(source.width-1, y);
+          float *downPtr = out(source.width-2, y+1);
+          for(int x = source.width-2; x >= 0; --x)
           {
-            if (outPtr[2] > 0)
+            if (outPtr[errorChannel] > 0)
             {
               float distRight = distance(source, target, mask,
                                           x, y,
                                           rightPtr[0]-1, rightPtr[1],
-                                          patchSize, outPtr[3]);
+                                          patchSize, outPtr[errorChannel]);
 
-              if (distRight < outPtr[2])
+              if (distRight < outPtr[errorChannel])
               {
                   outPtr[0] = rightPtr[0]-1;
                   outPtr[1] = rightPtr[1];
-                  outPtr[2] = distRight;
+                  outPtr[errorChannel] = distRight;
               }
 
               float distDown = distance(source, target, mask,
                                         x, y,
                                         downPtr[0], downPtr[1]-1,
-                                        patchSize, outPtr[3]);
+                                        patchSize, outPtr[errorChannel]);
 
-              if (distDown < outPtr[2])
+              if (distDown < outPtr[errorChannel])
               {
                   outPtr[0] = downPtr[0];
                   outPtr[1] = downPtr[1]-1;
-                  outPtr[2] = distDown;
+                  outPtr[errorChannel] = distDown;
               }
             } // end if (outPtr[3] > 0)
 
-            outPtr -= 3;
-            rightPtr -= 3;
-            downPtr -= 3;
+            outPtr -= out.channels;
+            rightPtr -= out.channels;
+            downPtr -= out.channels;
           } // end for(int x = source.width-2; x >= 0; x--)
         } // end for(int y = source.height-2; y >= 0; y--)
       } // end else
@@ -219,7 +217,7 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
       forwardSearch = !forwardSearch;
 
       // RANDOM SEARCH
-      float *outPtr = out(0, 0, 0);
+      float *outPtr = out(0, 0);
 
       for(int y = 0; y < source.height; ++y)
       {
@@ -258,11 +256,11 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
                 outPtr[2] = dist;
               }
 
-              radius >>= 1;
+              radius >>= 1; // Divide the radius by 2
 
             } // end while (radius > 8)
           } // end if (outPtr[3] > 0)
-          outPtr += 3;
+          outPtr += out.channels;
         } // end for x
       } // end for y
     } // end for (int i = 0; i < iterations; i++)
@@ -339,12 +337,6 @@ float PatchMatch::distance(Window source, Window target, Window mask,
     int x2 = min(patchSize, -sx+source.width-1, -tx+target.width-1);
     int y1 = max(-patchSize, -sy, -ty);
     int y2 = min(patchSize, -sy+source.height-1, -ty+target.height-1);
-    
-    /*
-    int x1 = -patchSize, x2 = patchSize;
-    int y1 = -patchSize, y2 = patchSize;
-    */
-
 
     for(int y = y1; y <= y2; y++)
     {
