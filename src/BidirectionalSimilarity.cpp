@@ -16,25 +16,42 @@
 
 #include "header.h"
 
-void Heal::apply(Window image, Window mask,
+void Heal::apply(Window imageIn, Window mask,
                  int numIter, int numIterPM)
 {
-  // Smoothly fill the hole
-  Inpaint::apply(image, mask);
-  image.Write("image_smooth_filled.png");
+  imageIn.WritePNG("image.png");
+  mask.WriteMask("mask.png");
   
-  int patchSize = 15;
+  // Smoothly fill the hole
+  std::cout << "Image has " << imageIn.channels << " channels." << std::endl;
+  // Not sure why this doesn't work (when the input argument was named 'image')
+  // so we simply renamed the argument and smooth-fill the image into the image called 'image'.
 
+//   image = Inpaint::apply(image, mask);
+//   std::cout << "Image has " << image.channels << " channels." << std::endl;
+//   image.WritePNG("image_smooth_filled.png");
+
+//   Image image = Inpaint::apply(imageIn, mask);
+//   image.WritePNG("image_smooth_filled.png");
+
+  Image image = imageIn;
+
+  int patchDiameter = 15;
+
+  Image out(image.width, image.height, 1, image.channels+1); // +1 to store the weight?
+  out.Zero();
+  
   for(int i = 0; i < numIter; i++)
   {
-    std::cout << ".";
-
-    // The homogeneous output for this iteration
-    Image out(image.width, image.height, 1, image.channels+1); // +1 to store the weight?
+    std::cout << "Heal Iteration " << i << std::endl;
 
     // COHERENCE TERM
     Image coherentMatch = PatchMatch::apply(image, image, mask,
-                                            numIterPM, patchSize);
+                                            numIterPM, patchDiameter);
+    std::stringstream ssPatchMatch;
+    ssPatchMatch << "Heal_PatchMatch_" << i << ".mha";
+    coherentMatch.WriteMeta(ssPatchMatch.str());
+    std::cout << "Finished PatchMatch." << std::endl;
 
     // For every patch in the target, pull from the nearest match in the source
     float *matchPtr = coherentMatch(0, 0);
@@ -47,41 +64,40 @@ void Heal::apply(Window image, Window mask,
     // Loop over the whole image (patch centers)
     for (int y = 0; y < image.height; y++)
     {
-      float *targMaskPtr = mask(0, y);
+      float *maskPtr = mask(0, y);
       for (int x = 0; x < image.width; x++)
       {
-        if (!mask || targMaskPtr[0] > 0)
+        if (maskPtr[0] == 0) // Fill this pixel
         {
           int dstX = (int)matchPtr[0];
           int dstY = (int)matchPtr[1];
 
-          float weight = 1.0f/(matchPtr[2]+1);
+          // weight by the SSD score (need to normalize this if we want to use it)
+          // float weight = 1.0f/(matchPtr[2]+1);
 
-          if (mask)
-          {
-            weight *= targMaskPtr[0];
-          }
+          // weight equally
+          float weight = 1.0f/(patchDiameter*patchDiameter);
 
-          for (int dy = -patchSize/2; dy <= patchSize/2; dy++)
+          for (int dy = -patchDiameter/2; dy <= patchDiameter/2; dy++)
           {
-            if (y+dy < 0)
+            if (y+dy < 0)// skip this row
             {
               continue;
             }
-            if (y+dy >= out.height)
+            if (y+dy >= out.height) // quit when we get past the last row
             {
               break;
             }
-            float *sourcePtr = image(dstX-patchSize/2, dstY+dy);
-            float *outPtr = out(x-patchSize/2, y+dy);
-            for (int dx = -patchSize/2; dx <= patchSize/2; dx++)
+            float *imagePtr = image(dstX-patchDiameter/2, dstY+dy);
+            float *outPtr = out(x-patchDiameter/2, y+dy);
+            for (int dx = -patchDiameter/2; dx <= patchDiameter/2; dx++)
             {
-              if (x+dx < 0)
+              if (x+dx < 0) // skip this pixel
               {
                 outPtr += out.channels;
-                sourcePtr += image.channels;
+                imagePtr += image.channels;
               }
-              else if (x+dx >= out.width)
+              else if (x+dx >= out.width) // quit when we get to the end of the row
               {
                 break;
               }
@@ -89,22 +105,38 @@ void Heal::apply(Window image, Window mask,
               {
                 for (int c = 0; c < image.channels; c++)
                 {
-                  (*outPtr++) += weight*(*sourcePtr++);
+                  (*outPtr++) += weight*(*imagePtr++);
                 }
                 (*outPtr++) += weight;
               }
             }
           }
         } // end if (!targetMask || targMaskPtr[0] > 0)
+        else // Copy the input to the output
+        {
+          float *imagePtr = image(x, y);
+          float *outPtr = out(x, y);
+          for (int c = 0; c < image.channels; c++)
+          {
+            (*outPtr++) += (*imagePtr++);
+          }
+        }
 
-        targMaskPtr++;
+        maskPtr++;
         matchPtr += coherentMatch.channels;
       }
     }
 
-    std::stringstream ss;
-    ss << "Iteration_" << i << ".mha";
-    out.Write(ss.str());
+    std::stringstream ssMeta;
+    ssMeta << "Iteration_" << i << ".mha";
+    out.WriteMeta(ssMeta.str());
+
+    std::stringstream ssPNG;
+    ssPNG << "Iteration_" << i << ".png";
+    out.WritePNG(ssPNG.str());
+
+    // reset for the next iteration
+    image = out;
   } // end for(int i = 0; i < numIter; i++)
   std::cout << std::endl;
 }
@@ -128,11 +160,10 @@ void Heal::parse(vector<string> args)
   assert(args.size() < 3, "-heal takes zero, one, or two arguments\n");
 
   Window mask = stack(1);
-  Window image = stack(0);
+  std::cout << "Mask has " << mask.channels << " channels." << std::endl;
 
-  Image inverseMask(mask);
-  Scale::apply(inverseMask, -1);
-  Offset::apply(inverseMask, 1);
+  Window image = stack(0);
+  std::cout << "Image has " << image.channels << " channels." << std::endl;
 
   if (args.size() > 0)
   {

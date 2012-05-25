@@ -11,7 +11,11 @@ class Window {
         data = NULL;
     }
 
-    void Write(const std::string& filename);
+    void WriteMeta(const std::string& filename);
+    void WriteMask(const std::string& filename);
+    void WritePNG(const std::string& filename);
+
+    void Zero();
     
     operator bool() {
         return (data != NULL);

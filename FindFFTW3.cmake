@@ -43,7 +43,6 @@ endif()
 
 # Loop over each component.
 set(_libraries)
-message("$components ${_components}")
 foreach(_comp ${_components})
   if(_comp STREQUAL "single")
     list(APPEND _libraries fftw3f)

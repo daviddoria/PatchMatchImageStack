@@ -25,5 +25,4 @@ Statistics.cpp
 BidirectionalSimilarity.cpp
 )
 
-message("FFTW3_LIBRARIES ${FFTW3_LIBRARIES}")
 TARGET_LINK_LIBRARIES(ImageStack png ${FFTW3_LIBRARIES} ${ITK_LIBRARIES})
