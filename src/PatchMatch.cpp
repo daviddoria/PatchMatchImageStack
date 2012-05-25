@@ -58,12 +58,17 @@ void PatchMatch::parse(vector<string> args)
   std::cout << "PatchMatch::parse mask has " << mask.channels << std::endl;
   std::cout << "PatchMatch::parse sourceImage has " << sourceImage.channels << std::endl;
   std::cout << "PatchMatch::parse targetImage has " << targetImage.channels << std::endl;
-  Image result = apply(sourceImage, targetImage, mask, numIter, patchSize);
+
+  Image initialization(sourceImage.width, sourceImage.height, 1, sourceImage.channels);
+  Random(initialization, sourceImage, mask, patchSize);
+
+  Image result = apply(sourceImage, targetImage, mask, numIter, patchSize, initialization);
 
   push(result);
 }
 
-Image PatchMatch::apply(Window source, Window target, Window mask, int iterations, int patchDiameter)
+Image PatchMatch::apply(Window source, Window target, Window mask,
+                        int iterations, int patchDiameter, Image initialization)
 {
   if (mask)
   {
@@ -95,22 +100,6 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
   // the mask is high
 
   float *outPtr = out(0, 0);
-
-  // INITIALIZATION - uniform random assignment
-  for(int y = 0; y < source.height; y++)
-  {
-    for(int x = 0; x < source.width; x++)
-    {
-      int dx = randomInt(patchSize, target.width-patchSize-1);
-      int dy = randomInt(patchSize, target.height-patchSize-1);
-      *outPtr++ = dx;
-      *outPtr++ = dy;
-      *outPtr++ = distance(source, target, mask,
-                            x, y,
-                            dx, dy,
-                            patchSize, HUGE_VAL);
-    }
-  }
 
   bool forwardSearch = true;
 
@@ -287,6 +276,8 @@ float PatchMatch::distance(Window source, Window target, Window mask,
                            int tx, int ty,
                            int patchSize, float prevDist)
 {
+    // (x,y) seems to define the center of the patch?
+
     // Do not use patches on boundaries
     if (tx < patchSize || tx >= target.width-patchSize || 
         ty < patchSize || ty >= target.height-patchSize)
@@ -320,7 +311,8 @@ float PatchMatch::distance(Window source, Window target, Window mask,
       for (int i = 0; i <= x2-x1; i++)
       {
         float d = 0;
-        float w = mask ? pMask[0] : 1; // If there is a mask, set the weight to the mask value. If not, set all weights to 1.
+        // If there is a mask, set the weight to the mask value. If not, set all weights to 1.
+        float w = mask ? pMask[0] : 1;
         assert(w >= 0, "Negative w %f\n", w);
         for (int j = 0; j < target.channels; j++)
         {
@@ -356,4 +348,22 @@ float PatchMatch::distance(Window source, Window target, Window mask,
     return dist / weight;
 }
 
+void PatchMatch::Random(Image patchMatchImage, Image image, Image mask, const int patchSize)
+{
+  for(int y = 0; y < image.height; y++)
+  {
+    for(int x = 0; x < image.width; x++)
+    {
+      int dx = randomInt(patchSize, image.width-patchSize-1);
+      int dy = randomInt(patchSize, image.height-patchSize-1);
+
+      patchMatchImage(x,y)[0] = dx;
+      patchMatchImage(x,y)[1] = dy;
+      patchMatchImage(x,y)[2] = distance(image, image, mask,
+                            x, y,
+                            dx, dy,
+                            patchSize, HUGE_VAL);
+    }
+  }
+}
 #include "footer.h"

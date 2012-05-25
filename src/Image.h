@@ -10,12 +10,6 @@ class Window {
         xstride = ystride = tstride = width = height = frames = channels = 0;
         data = NULL;
     }
-
-    void WriteMeta(const std::string& filename);
-    void WriteMask(const std::string& filename);
-    void WritePNG(const std::string& filename);
-
-    void Zero();
     
     operator bool() {
         return (data != NULL);
@@ -334,8 +328,19 @@ class Image : public Window {
         xstride = ystride = tstride = 0;
         memory = data = NULL;
     }
+
+
+    void WriteMeta(const std::string& filename);
+    void WriteMask(const std::string& filename);
+    void WritePNG(const std::string& filename);
+
+    void Zero();
+    //Window CopyData(Window im);
     
-        
+    void CopyData(Image im);
+
+    void SetAllComponents(const int x, const int y, const float value);
+    
     void debug() {
         printf("%llx(%d@%llx): %d %d %d %d\n", (unsigned long long)data, refCount[0], (unsigned long long)refCount, width, height, frames, channels);
     }
@@ -456,6 +461,7 @@ class Image : public Window {
     Image copy() {
         return Image(width, height, frames, channels, data);
     }
+
     
     ~Image();
 

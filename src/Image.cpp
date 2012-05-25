@@ -20,27 +20,27 @@ Image::~Image()
 {
     //printf("In image destructor\n"); fflush(stdout);
 
-    if (!refCount) {
-        //printf("Deleting NULL image\n"); fflush(stdout);
-        return; // the image was a dummy
-    }
-    //printf("Decremementing refcount\n"); fflush(stdout);
-    refCount[0]--;
-    if (*refCount <= 0) {
-        //printf("Deleting image\n"); fflush(stdout);
-        //debug();
-        delete refCount;
-        //printf("refCount deleted\n"); fflush(stdout);
-        //debug();        
-        delete[] memory;
-        //printf("data deleted\n"); fflush(stdout);
-        //debug();
-    }
+//     if (!refCount) {
+//         //printf("Deleting NULL image\n"); fflush(stdout);
+//         return; // the image was a dummy
+//     }
+//     //printf("Decremementing refcount\n"); fflush(stdout);
+//     refCount[0]--;
+//     if (*refCount <= 0) {
+//         //printf("Deleting image\n"); fflush(stdout);
+//         //debug();
+//         delete refCount;
+//         //printf("refCount deleted\n"); fflush(stdout);
+//         //debug();        
+//         delete[] memory;
+//         //printf("data deleted\n"); fflush(stdout);
+//         //debug();
+//     }
 
     //printf("Leaving image desctructor\n"); fflush(stdout);
 }
 
-void Window::WriteMeta(const std::string& filename)
+void Image::WriteMeta(const std::string& filename)
 {
   typedef itk::VectorImage<float, 2> ImageType;
   ImageType::Pointer itkimage = ImageType::New();
@@ -74,7 +74,7 @@ void Window::WriteMeta(const std::string& filename)
 }
 
 
-void Window::WriteMask(const std::string& filename)
+void Image::WriteMask(const std::string& filename)
 {
   if(this->channels != 1)
   {
@@ -108,7 +108,7 @@ void Window::WriteMask(const std::string& filename)
   writer->Update();
 }
 
-void Window::WritePNG(const std::string& filename)
+void Image::WritePNG(const std::string& filename)
 {
   if(this->channels < 3)
   {
@@ -145,7 +145,7 @@ void Window::WritePNG(const std::string& filename)
   writer->Update();
 }
 
-void Window::Zero()
+void Image::Zero()
 {
   for(unsigned int x = 0; x < this->width; ++x)
   {
@@ -156,6 +156,66 @@ void Window::Zero()
         this->operator()(x,y)[c] = 0;
       }
     }
+  }
+}
+
+// Window Window::CopyData(Window im)
+// {
+// //   if(im.width != this->width || im.height != this->height || im.channels != this->channels)
+// //   {
+// //     std::cerr << "im: " << im.width << " " << im.height << " " << im.channels << std::endl;
+// //     std::cerr << "this: " << this->width << " " << this->height << " " << this->channels << std::endl;
+// //     throw std::runtime_error("Can only copy images of the same size!");
+// //   }
+// 
+//   std::cout << "im: " << im.width << " " << im.height << " " << im.channels << std::endl;
+//   *this = Image(im.width, im.height, 1, im.channels);
+//   std::cout << "this: " << this->width << " " << this->height << " " << this->channels << std::endl;
+// 
+//   for(unsigned int x = 0; x < this->width; ++x)
+//   {
+//     for(unsigned int y = 0; y < this->height; ++y)
+//     {
+//       for(unsigned int c = 0; c < this->channels; ++c)
+//       {
+//         //this->operator()(x,y)[c] = im(x,y)[c];
+//         (*this)(x,y)[c] = im(x,y)[c];
+//       }
+//     }
+//   }
+// }
+
+void Image::CopyData(Image im)
+{
+  if(im.width != this->width || im.height != this->height || im.channels != this->channels)
+  {
+    std::cerr << "im: " << im.width << " " << im.height << " " << im.channels << std::endl;
+    std::cerr << "this: " << this->width << " " << this->height << " " << this->channels << std::endl;
+    throw std::runtime_error("Can only copy images of the same size!");
+  }
+
+//   std::cout << "im: " << im.width << " " << im.height << " " << im.channels << std::endl;
+//   *this = Image(im.width, im.height, 1, im.channels);
+//   std::cout << "this: " << this->width << " " << this->height << " " << this->channels << std::endl;
+
+  for(unsigned int x = 0; x < this->width; ++x)
+  {
+    for(unsigned int y = 0; y < this->height; ++y)
+    {
+      for(unsigned int c = 0; c < this->channels; ++c)
+      {
+        //this->operator()(x,y)[c] = im(x,y)[c];
+        (*this)(x,y)[c] = im(x,y)[c];
+      }
+    }
+  }
+}
+
+void Image::SetAllComponents(const int x, const int y, const float value)
+{
+  for(unsigned int c = 0; c < this->channels; ++c)
+  {
+    (*this)(x,y)[c] = value;
   }
 }
 
