@@ -8,7 +8,7 @@ public:
 
   void help();
   void parse(vector<string> args);
-  static Image apply(Window source, Window target, int iterations, int patchSize);
+
   static Image apply(Window source, Window target, Window mask, int iterations, int patchSize);
 
 private:

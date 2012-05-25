@@ -2,10 +2,6 @@
 // Implementation of PatchMatch algorithm and its applications
 // Sung Hee Park (shpark7@stanford.edu)
 
-#include "itkVectorImage.h"
-#include "itkImageRegionIterator.h"
-#include "itkImageFileWriter.h"
-
 #include "main.h"
 #include "File.h"
 #include "Geometry.h"
@@ -15,6 +11,7 @@
 #include "Statistics.h"
 #include "Filter.h"
 #include "Paint.h"
+#include "Output.h"
 #include "header.h"
 
 void PatchMatch::help() {
@@ -55,47 +52,44 @@ void PatchMatch::parse(vector<string> args)
         numIter = readInt(args[0]);
     }
 
-    Image result;
+    Window mask = stack(0);
+    Window sourceImage = stack(1);
+    Window targetImage = stack(2);
 
-    //result = apply(stack(0), stack(1), numIter, patchSize); // no mask
-    std::cout << "stack(0) has " << stack(0).channels << std::endl;
-    std::cout << "stack(1) has " << stack(1).channels << std::endl;
-    std::cout << "stack(2) has " << stack(2).channels << std::endl;
-    result = apply(stack(1), stack(2), stack(0), numIter, patchSize); // with mask as third image to be loaded (-load)
+    std::cout << "mask has " << mask.channels << std::endl;
+    std::cout << "sourceImage has " << sourceImage.channels << std::endl;
+    std::cout << "targetImage has " << targetImage.channels << std::endl;
+    Image result = apply(sourceImage, targetImage, mask, numIter, patchSize);
 
     push(result);
 }
 
-Image PatchMatch::apply(Window source, Window target, int iterations, int patchSize)
+Image PatchMatch::apply(Window source, Window target, Window mask, int iterations, int patchDiameter)
 {
-    return apply(source, target, Window(), iterations, patchSize);
-}
-
-Image PatchMatch::apply(Window source, Window target, Window mask, int iterations, int patchSize)
-{
-
     if (mask)
     {
       assert(target.width == mask.width &&
               target.height == mask.height &&
               target.frames == mask.frames,
               "Mask must have the same dimensions as the target\n");
-      std::cout << "mask has " << mask.channels << " channels." << std::endl;
+      std::cout << "PatchMask: mask has " << mask.channels << " channels." << std::endl;
       assert(mask.channels == 1, "Mask must have a single channel\n");
       assert(target.frames == 1, "Target must have a single frame (non-video)\n");
       assert(source.frames == 1, "Source must have a single frame (non-video)\n");
     }
     assert(iterations > 0, "Iterations must be a strictly positive integer\n");
-    assert(patchSize >= 3 && (patchSize & 1), "Patch size must be at least 3 and odd\n");
+    std::cout << "PatchMatch patchDiameter: " << patchDiameter << std::endl;
+    assert(patchDiameter >= 3 && (patchDiameter & 1), "patchDiameter must be at least 3 and odd\n");
 
     // convert patch diameter to patch radius
-    patchSize /= 2;
+    int patchSize = patchDiameter / 2;
 
     // For each source pixel, output a 2-vector (x coord, y coord, error)to the best match in
     // the target.
     Image out(source.width, source.height, 1, 3); // 1 frame, 3 channels (x,y,error)
 
     unsigned int errorChannel = out.channels - 1; // The last channel (e.g. channel 2 (0-indexed) in a 3-channel image) is the error
+
     // Iterate over source frames, finding a match in the target where
     // the mask is high
 
@@ -116,14 +110,11 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
                               patchSize, HUGE_VAL);
       }
     }
-    
 
     bool forwardSearch = true;
 
     for (int i = 0; i < iterations; i++)
     {
-      //printf("Iteration %d\n", i);
-
       // PROPAGATION
       if (forwardSearch)
       {
@@ -280,35 +271,7 @@ Image PatchMatch::apply(Window source, Window target, Window mask, int iteration
       }
     }
 
-    typedef itk::VectorImage<float, 2> ImageType;
-    ImageType::Pointer itkimage = ImageType::New();
-    itk::Index<2> itkcorner = {{0,0}};
-    itk::Size<2> itksize = {{out.width,out.height}};
-    itk::ImageRegion<2> itkregion(itkcorner, itksize);
-    itkimage->SetRegions(itkregion);
-    itkimage->SetNumberOfComponentsPerPixel(out.channels);
-    itkimage->Allocate();
-
-    itk::ImageRegionIterator<ImageType> imageIterator(itkimage, itkregion);
-
-    while(!imageIterator.IsAtEnd())
-      {
-      ImageType::PixelType pixel;
-      pixel.SetSize(out.channels);
-      for(unsigned int channel = 0; channel < out.channels; ++channel)
-        {
-        pixel[channel] = out(imageIterator.GetIndex()[0], imageIterator.GetIndex()[1])[channel];
-        }
-      imageIterator.Set(pixel);
-
-      ++imageIterator;
-      }
-
-    typedef  itk::ImageFileWriter<ImageType> WriterType;
-    WriterType::Pointer writer = WriterType::New();
-    writer->SetFileName("nnfield.mha");
-    writer->SetInput(itkimage);
-    writer->Update();
+    out.Write("nnfied.mha");
 
     return out;
 }
@@ -375,10 +338,14 @@ float PatchMatch::distance(Window source, Window target, Window mask,
       }
     }
 
+    std::cout << "PatchMatch dist: " << dist << std::endl;
     assert(dist >= 0, "negative dist\n");
     assert(weight >= 0, "negative weight\n");
 
-    if (!weight) return HUGE_VAL;
+    if (!weight)
+    {
+      return HUGE_VAL;
+    }
 
     return dist / weight;
 }

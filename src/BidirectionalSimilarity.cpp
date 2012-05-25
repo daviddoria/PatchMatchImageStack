@@ -12,43 +12,17 @@
 #include "Filter.h"
 #include "Paint.h"
 #include "PatchMatch.h"
+#include "Output.h"
 #include "header.h"
 
 void BidirectionalSimilarity::help()
 {
-    pprintf("-bidirectionalsimilarity reconstructs the top image on the stack using"
-            " patches from the second image on the stack, by enforcing coherence"
-            " (every patch in the output must look like a patch from the input) and"
-            " completeness (every patch from the input must be represented somewhere"
-            " in the output). The first argument is a number between zero and one,"
-            " which trades off between favoring coherence only (at zero), and"
-            " completeness only (at one). It defaults to 0.5. The second arguments"
-            " specifies the number of iterations that should be performed, and"
-            " defaults to five. Bidirectional similarity uses patchmatch as the"
-            " underlying nearest-neighbour-field algorithm, and the third argument"
-            " specifies how many iterations of patchmatch should be performed each"
-            " time it is run. This also defaults to five.\n"
-            "\n"
-            "Usage: ImageStack -load source.jpg -load target.jpg -bidirectional 0.5 -display\n");
+
 }
 
 void BidirectionalSimilarity::parse(vector<string> args)
 {
-  int numIter = 5;
-  int numIterPM = 5;
-
-  assert(args.size() <= 3, "-bidirectional takes three or fewer arguments\n");
-  if (args.size() == 3)
-  {
-    numIter = readFloat(args[1]);
-    numIterPM = readFloat(args[2]);
-  }
-  else if (args.size() == 2)
-  {
-    numIter = readFloat(args[1]);
-  }
-
-  apply(stack(1), stack(0), Window(), Window(), numIter, numIterPM);
+  std::cerr << "Cannot run this directly." << std::endl;
 }
 
 
@@ -58,52 +32,11 @@ void BidirectionalSimilarity::apply(Window source, Window target,
                                     Window sourceMask, Window targetMask,
                                     int numIter, int numIterPM)
 {
-  // TODO: intelligently crop the input to where the mask is high +
-  // patch radius on each side
+  int patchSize = 15;
 
-  // recurse
-  if (source.width > 32 && source.height > 32 && target.width > 32 && target.height > 32)
-  {
-    Image smallSource = Resample::apply(source, source.width/2, source.height/2, 1); // 1 frame
-    Image smallTarget = Resample::apply(target, target.width/2, target.height/2, 1); // 1 frame
-
-    Image smallSourceMask;
-    Image smallTargetMask;
-    if (sourceMask)
-    {
-      smallSourceMask = Downsample::apply(sourceMask, 2, 2, 1);
-    }
-
-    if (targetMask)
-    {
-      smallTargetMask = Downsample::apply(targetMask, 2, 2, 1);
-    }
-
-    apply(smallSource, smallTarget, smallSourceMask, smallTargetMask, numIter, numIterPM);
-
-    Image newTarget = Resample::apply(smallTarget, target.width, target.height, 1); // 1 frame
-
-    if (targetMask)
-    {
-      Composite::apply(target, newTarget, targetMask);
-    }
-    else
-    {
-      for (int y = 0; y < target.height; y++)
-      {
-        float *targPtr = target(0, y);
-        float *newTargPtr = newTarget(0, y);
-        memcpy(targPtr, newTargPtr, sizeof(float)*target.channels*target.width);
-      }
-    }
-  }
-
-  std::cout << target.width << "x" << target.height << std::endl;
   for(int i = 0; i < numIter; i++)
   {
     std::cout << ".";
-
-    int patchSize = target.width / 6;
 
     // The homogeneous output for this iteration
     Image out(target.width, target.height, 1, target.channels+1); // +1 to store the weight?
@@ -111,9 +44,11 @@ void BidirectionalSimilarity::apply(Window source, Window target,
     // COHERENCE TERM
     Image coherentMatch = PatchMatch::apply(target, source, sourceMask,
                                             numIterPM, patchSize);
+
     // For every patch in the target, pull from the nearest match in the source
     float *matchPtr = coherentMatch(0, 0);
 
+    // Loop over the whole image (patch centers)
     for (int y = 0; y < target.height; y++)
     {
       float *targMaskPtr = targetMask(0, y);
@@ -171,7 +106,7 @@ void BidirectionalSimilarity::apply(Window source, Window target,
       }
     }
 
-    // rewrite the target using the homogeneous output
+    // rewrite the target
     float *outPtr = out(0, 0);
     float *targMaskPtr = targetMask(0, 0);
     for (int y = 0; y < out.height; y++)
@@ -211,6 +146,9 @@ void BidirectionalSimilarity::apply(Window source, Window target,
       } // end for x
     } // end for y
 
+    std::stringstream ss;
+    ss << "Iteration_" << i << ".mha";
+    out.Write(ss.str());
   } // end for(int i = 0; i < numIter; i++)
   std::cout << std::endl;
 }
@@ -223,32 +161,33 @@ void Heal::help()
            " arguments include the number of iterations to run per scale, and the"
            " number of iterations of patchmatch to run. Both default to five.\n"
            "\n"
-           "Usage: ImageStack -load mask.png -load image.jpg -heal -display\n");
+           "Usage: ImageStack -load mask.png -load image.jpg -heal -save out.png \n");
 }
 
 void Heal::parse(vector<string> args)
 {
-    int numIter = 5;
-    int numIterPM = 5;
+  int numIter = 5;
+  int numIterPM = 5;
 
-    assert(args.size() < 3, "-heal takes zero, one, or two arguments\n");
+  assert(args.size() < 3, "-heal takes zero, one, or two arguments\n");
 
-    Window mask = stack(1);
-    Window image = stack(0);
+  Window mask = stack(1);
+  Window image = stack(0);
 
-    Image inverseMask(mask);
-    Scale::apply(inverseMask, -1);
-    Offset::apply(inverseMask, 1);
+  Image inverseMask(mask);
+  Scale::apply(inverseMask, -1);
+  Offset::apply(inverseMask, 1);
 
-    if (args.size() > 0)
-    {
-      numIter = readInt(args[0]);
-    }
-    if (args.size() > 1)
-    {
-      numIterPM = readInt(args[1]);
-    }
+  if (args.size() > 0)
+  {
+    numIter = readInt(args[0]);
+  }
+  if (args.size() > 1)
+  {
+    numIterPM = readInt(args[1]);
+  }
 
-    BidirectionalSimilarity::apply(image, image, inverseMask, mask, numIter, numIterPM);
+  BidirectionalSimilarity::apply(image, image, inverseMask, mask, numIter, numIterPM);
 }
+
 #include "footer.h"

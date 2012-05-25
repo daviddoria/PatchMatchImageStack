@@ -11,6 +11,8 @@ class Window {
         data = NULL;
     }
 
+    void Write(const std::string& filename);
+    
     operator bool() {
         return (data != NULL);
     }
