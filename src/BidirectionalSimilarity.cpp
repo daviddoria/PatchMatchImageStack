@@ -16,26 +16,12 @@
 
 #include "header.h"
 
-void BidirectionalSimilarity::help()
-{
-
-}
-
-void BidirectionalSimilarity::parse(vector<string> args)
-{
-  std::cerr << "Cannot run this directly." << std::endl;
-}
-
-
-// Reconstruct the portion of the target where the targetMask is high, using
-// the portion of the source where the sourceMask is high.
-void BidirectionalSimilarity::apply(Window source, Window target,
-                                    Window sourceMask, Window targetMask,
-                                    int numIter, int numIterPM)
+void Heal::apply(Window image, Window mask,
+                 int numIter, int numIterPM)
 {
   // Smoothly fill the hole
-  Inpaint::apply(target, targetMask);
-  target.Write("target_smooth_filled.png");
+  Inpaint::apply(image, mask);
+  image.Write("image_smooth_filled.png");
   
   int patchSize = 15;
 
@@ -44,29 +30,34 @@ void BidirectionalSimilarity::apply(Window source, Window target,
     std::cout << ".";
 
     // The homogeneous output for this iteration
-    Image out(target.width, target.height, 1, target.channels+1); // +1 to store the weight?
+    Image out(image.width, image.height, 1, image.channels+1); // +1 to store the weight?
 
     // COHERENCE TERM
-    Image coherentMatch = PatchMatch::apply(target, source, sourceMask,
+    Image coherentMatch = PatchMatch::apply(image, image, mask,
                                             numIterPM, patchSize);
 
     // For every patch in the target, pull from the nearest match in the source
     float *matchPtr = coherentMatch(0, 0);
 
+    // The contribution of each pixel q to the error term (d_cohere) = 1/N_T \sum_{i=1}^m (S(p_i) - T(q))^2
+    // To find the best color T(q) (iterative update rule), differentiate with respect to T(q),
+    // set to 0, and solve for T(q):
+    // T(q) = \frac{1}{m} \sum_{i=1}^m S(p_i)
+
     // Loop over the whole image (patch centers)
-    for (int y = 0; y < target.height; y++)
+    for (int y = 0; y < image.height; y++)
     {
-      float *targMaskPtr = targetMask(0, y);
-      for (int x = 0; x < target.width; x++)
+      float *targMaskPtr = mask(0, y);
+      for (int x = 0; x < image.width; x++)
       {
-        if (!targetMask || targMaskPtr[0] > 0)
+        if (!mask || targMaskPtr[0] > 0)
         {
           int dstX = (int)matchPtr[0];
           int dstY = (int)matchPtr[1];
 
           float weight = 1.0f/(matchPtr[2]+1);
 
-          if (targetMask)
+          if (mask)
           {
             weight *= targMaskPtr[0];
           }
@@ -81,14 +72,14 @@ void BidirectionalSimilarity::apply(Window source, Window target,
             {
               break;
             }
-            float *sourcePtr = source(dstX-patchSize/2, dstY+dy);
+            float *sourcePtr = image(dstX-patchSize/2, dstY+dy);
             float *outPtr = out(x-patchSize/2, y+dy);
             for (int dx = -patchSize/2; dx <= patchSize/2; dx++)
             {
               if (x+dx < 0)
               {
                 outPtr += out.channels;
-                sourcePtr += source.channels;
+                sourcePtr += image.channels;
               }
               else if (x+dx >= out.width)
               {
@@ -96,7 +87,7 @@ void BidirectionalSimilarity::apply(Window source, Window target,
               }
               else
               {
-                for (int c = 0; c < source.channels; c++)
+                for (int c = 0; c < image.channels; c++)
                 {
                   (*outPtr++) += weight*(*sourcePtr++);
                 }
@@ -110,46 +101,6 @@ void BidirectionalSimilarity::apply(Window source, Window target,
         matchPtr += coherentMatch.channels;
       }
     }
-
-    // rewrite the target
-    float *outPtr = out(0, 0);
-    float *targMaskPtr = targetMask(0, 0);
-    for (int y = 0; y < out.height; y++)
-    {
-      float *targetPtr = target(0, y);
-      for (int x = 0; x < out.width; x++)
-      {
-        float w = 1.0f/(outPtr[target.channels]);
-        float a = 1;
-        if (targetMask)
-        {
-          a = *targMaskPtr++;
-        }
-        if (a == 1)
-        {
-          for (int c = 0; c < target.channels; c++)
-          {
-            targetPtr[0] = w*(*outPtr++);
-            targetPtr++;
-          }
-        }
-        else if (a > 0)
-        {
-          for (int c = 0; c < target.channels; c++)
-          {
-            targetPtr[0] *= (1-a);
-            targetPtr[0] += a*w*(*outPtr++);
-            targetPtr++;
-          }
-        }
-        else
-        {
-          targetPtr += target.channels;
-          outPtr += target.channels;
-        }
-        outPtr++;
-      } // end for x
-    } // end for y
 
     std::stringstream ss;
     ss << "Iteration_" << i << ".mha";
@@ -192,7 +143,7 @@ void Heal::parse(vector<string> args)
     numIterPM = readInt(args[1]);
   }
 
-  BidirectionalSimilarity::apply(image, image, inverseMask, mask, numIter, numIterPM);
+  apply(image, mask, numIter, numIterPM);
 }
 
 #include "footer.h"
