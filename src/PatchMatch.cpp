@@ -59,7 +59,7 @@ void PatchMatch::parse(vector<string> args)
   std::cout << "PatchMatch::parse sourceImage has " << sourceImage.channels << std::endl;
   std::cout << "PatchMatch::parse targetImage has " << targetImage.channels << std::endl;
 
-  Image initialization(sourceImage.width, sourceImage.height, 1, sourceImage.channels);
+  Image initialization(sourceImage.width, sourceImage.height, 1, 3); // 1 frame (non-video), 3 channels (x,y,error)
   Random(initialization, sourceImage, mask, patchSize);
 
   Image result = apply(sourceImage, targetImage, mask, numIter, patchSize, initialization);
@@ -92,6 +92,7 @@ Image PatchMatch::apply(Window source, Window target, Window mask,
   // For each source pixel, output a 2-vector (x coord, y coord, error)to the best match in
   // the target.
   Image out(source.width, source.height, 1, 3); // 1 frame, 3 channels (x,y,error)
+  out.CopyData(initialization);
 
   // The last channel (e.g. channel 2 (0-indexed) in a 3-channel image) is the error
   unsigned int errorChannel = out.channels - 1;
