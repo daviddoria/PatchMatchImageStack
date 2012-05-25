@@ -9,7 +9,7 @@ class BidirectionalSimilarity : public Operation
     void parse(vector<string> args);
     static void apply(Window source, Window target,
                       Window sourceMask, Window targetMask,
-                      float alpha, int numIter, int numIterPM = 5);
+                      int numIter, int numIterPM = 5);
 
 };
 

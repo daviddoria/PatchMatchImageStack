@@ -34,33 +34,29 @@ void BidirectionalSimilarity::help()
 
 void BidirectionalSimilarity::parse(vector<string> args)
 {
+  int numIter = 5;
+  int numIterPM = 5;
 
-    float alpha = 0.5;
-    int numIter = 5;
-    int numIterPM = 5;
+  assert(args.size() <= 3, "-bidirectional takes three or fewer arguments\n");
+  if (args.size() == 3)
+  {
+    numIter = readFloat(args[1]);
+    numIterPM = readFloat(args[2]);
+  }
+  else if (args.size() == 2)
+  {
+    numIter = readFloat(args[1]);
+  }
 
-    assert(args.size() <= 3, "-bidirectional takes three or fewer arguments\n");
-    if (args.size() == 3) {
-         alpha = readFloat(args[0]);
-        numIter = readFloat(args[1]);
-        numIterPM = readFloat(args[2]);
-    } else if (args.size() == 2) {
-        alpha = readFloat(args[0]);
-        numIter = readFloat(args[1]);
-    } else if (args.size() == 1) {
-        alpha = readFloat(args[0]);
-    }
-
-    apply(stack(1), stack(0), Window(), Window(), alpha, numIter, numIterPM);
+  apply(stack(1), stack(0), Window(), Window(), numIter, numIterPM);
 }
 
 
-// Reconstruct the portion of the target where the mask is high, using
-// the portion of the source where its mask is high. Source and target
-// masks are allowed to be null windows.
+// Reconstruct the portion of the target where the targetMask is high, using
+// the portion of the source where the sourceMask is high.
 void BidirectionalSimilarity::apply(Window source, Window target,
                                     Window sourceMask, Window targetMask,
-                                    float alpha, int numIter, int numIterPM)
+                                    int numIter, int numIterPM)
 {
   // TODO: intelligently crop the input to where the mask is high +
   // patch radius on each side
@@ -68,8 +64,8 @@ void BidirectionalSimilarity::apply(Window source, Window target,
   // recurse
   if (source.width > 32 && source.height > 32 && target.width > 32 && target.height > 32)
   {
-    Image smallSource = Resample::apply(source, source.width/2, source.height/2, source.frames);
-    Image smallTarget = Resample::apply(target, target.width/2, target.height/2, target.frames);
+    Image smallSource = Resample::apply(source, source.width/2, source.height/2, 1); // 1 frame
+    Image smallTarget = Resample::apply(target, target.width/2, target.height/2, 1); // 1 frame
 
     Image smallSourceMask;
     Image smallTargetMask;
@@ -83,9 +79,9 @@ void BidirectionalSimilarity::apply(Window source, Window target,
       smallTargetMask = Downsample::apply(targetMask, 2, 2, 1);
     }
 
-    apply(smallSource, smallTarget, smallSourceMask, smallTargetMask, alpha, numIter, numIterPM);
+    apply(smallSource, smallTarget, smallSourceMask, smallTargetMask, numIter, numIterPM);
 
-    Image newTarget = Resample::apply(smallTarget, target.width, target.height, target.frames);
+    Image newTarget = Resample::apply(smallTarget, target.width, target.height, 1); // 1 frame
 
     if (targetMask)
     {
@@ -93,221 +89,134 @@ void BidirectionalSimilarity::apply(Window source, Window target,
     }
     else
     {
-      for (int t = 0; t < target.frames; t++)
+      for (int y = 0; y < target.height; y++)
       {
-        for (int y = 0; y < target.height; y++)
-        {
-          float *targPtr = target(0, y, t);
-          float *newTargPtr = newTarget(0, y, t);
-          memcpy(targPtr, newTargPtr, sizeof(float)*target.channels*target.width);
-        }
+        float *targPtr = target(0, y);
+        float *newTargPtr = newTarget(0, y);
+        memcpy(targPtr, newTargPtr, sizeof(float)*target.channels*target.width);
       }
     }
   }
 
-  printf("%dx%d ", target.width, target.height); fflush(stdout);
+  std::cout << target.width << "x" << target.height << std::endl;
   for(int i = 0; i < numIter; i++)
   {
-    printf("."); fflush(stdout);
+    std::cout << ".";
 
     int patchSize = target.width / 6;
 
-    Image completeMatch, coherentMatch;
-
     // The homogeneous output for this iteration
-    Image out(target.width, target.height, target.frames, target.channels+1);
+    Image out(target.width, target.height, 1, target.channels+1); // +1 to store the weight?
 
-    if (alpha != 0)
+    // COHERENCE TERM
+    Image coherentMatch = PatchMatch::apply(target, source, sourceMask,
+                                            numIterPM, patchSize);
+    // For every patch in the target, pull from the nearest match in the source
+    float *matchPtr = coherentMatch(0, 0);
+
+    for (int y = 0; y < target.height; y++)
     {
-
-      // COMPLETENESS TERM
-      Image completeMatch = PatchMatch::apply(source, target, targetMask, numIterPM, patchSize);
-
-      // For every patch in the source, splat it onto the
-      // nearest match in the target, weighted by the source
-      // mask and also by the inverse of the patch distance
-      float *matchPtr = completeMatch(0, 0, 0);
-      for (int t = 0; t < source.frames; t++)
+      float *targMaskPtr = targetMask(0, y);
+      for (int x = 0; x < target.width; x++)
       {
-        for (int y = 0; y < source.height; y++)
+        if (!targetMask || targMaskPtr[0] > 0)
         {
-          float *srcMaskPtr = sourceMask(0, y, t);
-          for (int x = 0; x < source.width; x++)
+          int dstX = (int)matchPtr[0];
+          int dstY = (int)matchPtr[1];
+
+          float weight = 1.0f/(matchPtr[2]+1);
+
+          if (targetMask)
           {
+            weight *= targMaskPtr[0];
+          }
 
-            if (!sourceMask || srcMaskPtr[0] > 0)
+          for (int dy = -patchSize/2; dy <= patchSize/2; dy++)
+          {
+            if (y+dy < 0)
             {
-
-                int dstX = (int)matchPtr[0];
-                int dstY = (int)matchPtr[1];
-                int dstT = (int)matchPtr[2];
-                float weight = 1.0f/(matchPtr[3]+1);
-
-                if (sourceMask)
-                {
-                  weight *= srcMaskPtr[0];
-                }
-
-              for (int dy = -patchSize/2; dy <= patchSize/2; dy++)
+              continue;
+            }
+            if (y+dy >= out.height)
+            {
+              break;
+            }
+            float *sourcePtr = source(dstX-patchSize/2, dstY+dy);
+            float *outPtr = out(x-patchSize/2, y+dy);
+            for (int dx = -patchSize/2; dx <= patchSize/2; dx++)
+            {
+              if (x+dx < 0)
               {
-                if (y+dy < 0)
+                outPtr += out.channels;
+                sourcePtr += source.channels;
+              }
+              else if (x+dx >= out.width)
+              {
+                break;
+              }
+              else
+              {
+                for (int c = 0; c < source.channels; c++)
                 {
-                  continue;
+                  (*outPtr++) += weight*(*sourcePtr++);
                 }
-                if (y+dy >= source.height)
-                {
-                  break;
-                }
-                float *sourcePtr = source(x-patchSize/2, y+dy, t);
-                float *outPtr = out(dstX-patchSize/2, dstY+dy, dstT);
-                for (int dx = -patchSize/2; dx <= patchSize/2; dx++)
-                {
-                  if (x+dx < 0)
-                  {
-                    outPtr += out.channels;
-                    sourcePtr += source.channels;
-                  }
-                  else if (x+dx >= source.width)
-                  {
-                    break;
-                  }
-                  else
-                  {
-                      for (int c = 0; c < source.channels; c++)
-                      {
-                        (*outPtr++) += weight*(*sourcePtr++);
-                      }
-                      (*outPtr++) += weight;
-                  }
-                }
+                (*outPtr++) += weight;
               }
             }
-
-            srcMaskPtr++;
-            matchPtr += completeMatch.channels;
           }
-        }
+        } // end if (!targetMask || targMaskPtr[0] > 0)
+
+        targMaskPtr++;
+        matchPtr += coherentMatch.channels;
       }
-    }
-
-      if (alpha != 1)
-      {
-        // COHERENCE TERM
-        Image coherentMatch = PatchMatch::apply(target, source, sourceMask,
-                                                numIterPM, patchSize);
-        // For every patch in the target, pull from the nearest match in the source
-        float *matchPtr = coherentMatch(0, 0, 0);
-        for (int t = 0; t < target.frames; t++)
-        {
-          for (int y = 0; y < target.height; y++)
-          {
-            float *targMaskPtr = targetMask(0, y, t);
-            for (int x = 0; x < target.width; x++)
-            {
-              if (!targetMask || targMaskPtr[0] > 0)
-              {
-                int dstX = (int)matchPtr[0];
-                int dstY = (int)matchPtr[1];
-                int dstT = (int)matchPtr[2];
-                float weight = 1.0f/(matchPtr[3]+1);
-
-                if (targetMask)
-                {
-                  weight *= targMaskPtr[0];
-                }
-
-                for (int dy = -patchSize/2; dy <= patchSize/2; dy++)
-                {
-                  if (y+dy < 0)
-                  {
-                    continue;
-                  }
-                  if (y+dy >= out.height)
-                  {
-                    break;
-                  }
-                  float *sourcePtr = source(dstX-patchSize/2, dstY+dy, dstT);
-                  float *outPtr = out(x-patchSize/2, y+dy, t);
-                  for (int dx = -patchSize/2; dx <= patchSize/2; dx++)
-                  {
-                    if (x+dx < 0)
-                    {
-                      outPtr += out.channels;
-                      sourcePtr += source.channels;
-                    }
-                    else if (x+dx >= out.width)
-                    {
-                      break;
-                    }
-                    else
-                    {
-                      for (int c = 0; c < source.channels; c++)
-                      {
-                        (*outPtr++) += weight*(*sourcePtr++);
-                      }
-                      (*outPtr++) += weight;
-                    }
-                  }
-                }
-              }
-
-                targMaskPtr++;
-                matchPtr += coherentMatch.channels;
-            }
-          }
-        }
     }
 
     // rewrite the target using the homogeneous output
-    float *outPtr = out(0, 0, 0);
-    float *targMaskPtr = targetMask(0, 0, 0);
-    for (int t = 0; t < out.frames; t++)
+    float *outPtr = out(0, 0);
+    float *targMaskPtr = targetMask(0, 0);
+    for (int y = 0; y < out.height; y++)
     {
-      for (int y = 0; y < out.height; y++)
+      float *targetPtr = target(0, y);
+      for (int x = 0; x < out.width; x++)
       {
-        float *targetPtr = target(0, y, t);
-        for (int x = 0; x < out.width; x++)
+        float w = 1.0f/(outPtr[target.channels]);
+        float a = 1;
+        if (targetMask)
         {
-          float w = 1.0f/(outPtr[target.channels]);
-          float a = 1;
-          if (targetMask)
-          {
-            a = *targMaskPtr++;
-          }
-          if (a == 1)
-          {
-            for (int c = 0; c < target.channels; c++)
-            {
-              targetPtr[0] = w*(*outPtr++);
-              targetPtr++;
-            }
-          }
-          else if (a > 0)
-          {
-            for (int c = 0; c < target.channels; c++)
-            {
-              targetPtr[0] *= (1-a);
-              targetPtr[0] += a*w*(*outPtr++);
-              targetPtr++;
-            }
-          }
-          else
-          {
-            targetPtr += target.channels;
-            outPtr += target.channels;
-          }
-          outPtr++;
+          a = *targMaskPtr++;
         }
-      }
-    }
+        if (a == 1)
+        {
+          for (int c = 0; c < target.channels; c++)
+          {
+            targetPtr[0] = w*(*outPtr++);
+            targetPtr++;
+          }
+        }
+        else if (a > 0)
+        {
+          for (int c = 0; c < target.channels; c++)
+          {
+            targetPtr[0] *= (1-a);
+            targetPtr[0] += a*w*(*outPtr++);
+            targetPtr++;
+          }
+        }
+        else
+        {
+          targetPtr += target.channels;
+          outPtr += target.channels;
+        }
+        outPtr++;
+      } // end for x
+    } // end for y
 
-    //Display::apply(target);
-
-  }
-  printf("\n");
+  } // end for(int i = 0; i < numIter; i++)
+  std::cout << std::endl;
 }
 
-void Heal::help() {
+void Heal::help()
+{
     printf("-heal takes an image and a mask, and reconstructs the portion of"
            " the image where the mask is high using patches from the rest of the"
            " image. It uses the patchmatch algorithm for acceleration. The"
@@ -340,6 +249,6 @@ void Heal::parse(vector<string> args)
       numIterPM = readInt(args[1]);
     }
 
-    BidirectionalSimilarity::apply(image, image, inverseMask, mask, 0, numIter, numIterPM);
+    BidirectionalSimilarity::apply(image, image, inverseMask, mask, numIter, numIterPM);
 }
 #include "footer.h"
