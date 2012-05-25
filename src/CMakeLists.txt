@@ -25,4 +25,5 @@ Statistics.cpp
 BidirectionalSimilarity.cpp
 )
 
-TARGET_LINK_LIBRARIES(ImageStack tiff png jpeg fftw3f ${ITK_LIBRARIES}) # jpeg is required when building with ITK? Strange...
+message("FFTW3_LIBRARIES ${FFTW3_LIBRARIES}")
+TARGET_LINK_LIBRARIES(ImageStack png ${FFTW3_LIBRARIES} ${ITK_LIBRARIES})

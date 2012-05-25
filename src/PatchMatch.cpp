@@ -55,7 +55,7 @@ void PatchMatch::parse(vector<string> args)
         numIter = readInt(args[0]);
     }
 
-    Image result;                     
+    Image result;
 
     //result = apply(stack(0), stack(1), numIter, patchSize); // no mask
     std::cout << "stack(0) has " << stack(0).channels << std::endl;
