@@ -11,10 +11,11 @@
 #include "Statistics.h"
 #include "Filter.h"
 #include "Paint.h"
-#include "Output.h"
+
 #include "header.h"
 
-void PatchMatch::help() {
+void PatchMatch::help()
+{
 
     printf("-patchmatch computes approximate nearest neighbor field from the top\n"
            "image on the stack to the second image on the stack, using the\n"
@@ -338,7 +339,7 @@ float PatchMatch::distance(Window source, Window target, Window mask,
       }
     }
 
-    std::cout << "PatchMatch dist: " << dist << std::endl;
+    //std::cout << "PatchMatch dist: " << dist << std::endl;
     assert(dist >= 0, "negative dist\n");
     assert(weight >= 0, "negative weight\n");
 

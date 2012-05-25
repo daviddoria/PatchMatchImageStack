@@ -20,7 +20,7 @@
 #include "File.h"
 #include "Calculus.h"
 #include "DFT.h"
-#include "Prediction.h"
+#include "Inpaint.h"
 #include "Filter.h"
 #include "PatchMatch.h"
 #include "BidirectionalSimilarity.h"

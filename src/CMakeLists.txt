@@ -19,11 +19,10 @@ Operation.cpp
 Paint.cpp
 Parser.cpp
 PatchMatch.cpp
-Prediction.cpp # has Inpaint()
+Inpaint.cpp
 Stack.cpp
 Statistics.cpp
 BidirectionalSimilarity.cpp
-
 )
 
 message("FFTW3_LIBRARIES ${FFTW3_LIBRARIES}")

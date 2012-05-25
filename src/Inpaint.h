@@ -1,5 +1,5 @@
-#ifndef IMAGESTACK_PREDICTION_H
-#define IMAGESTACK_PREDICTION_H
+#ifndef IMAGESTACK_INPAINT_H
+#define IMAGESTACK_INPAINT_H
 #include "header.h"
 
 class Inpaint : public Operation {

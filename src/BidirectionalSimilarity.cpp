@@ -5,6 +5,7 @@
 #include "main.h"
 #include "File.h"
 #include "Geometry.h"
+#include "Inpaint.h"
 #include "BidirectionalSimilarity.h"
 #include "Arithmetic.h"
 #include "Calculus.h"
@@ -12,7 +13,7 @@
 #include "Filter.h"
 #include "Paint.h"
 #include "PatchMatch.h"
-#include "Output.h"
+
 #include "header.h"
 
 void BidirectionalSimilarity::help()
@@ -32,6 +33,10 @@ void BidirectionalSimilarity::apply(Window source, Window target,
                                     Window sourceMask, Window targetMask,
                                     int numIter, int numIterPM)
 {
+  // Smoothly fill the hole
+  Inpaint::apply(target, targetMask);
+  target.Write("target_smooth_filled.png");
+  
   int patchSize = 15;
 
   for(int i = 0; i < numIter; i++)

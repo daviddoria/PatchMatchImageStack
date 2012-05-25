@@ -1,5 +1,5 @@
 #include "main.h"
-#include "Prediction.h"
+#include "Inpaint.h"
 #include "Geometry.h"
 #include "DFT.h"
 #include "header.h"
