@@ -25,4 +25,4 @@ Statistics.cpp
 BidirectionalSimilarity.cpp
 )
 
-TARGET_LINK_LIBRARIES(ImageStack png ${FFTW3_LIBRARIES} ${ITK_LIBRARIES})
+TARGET_LINK_LIBRARIES(ImageStack png ${FFTW3_LIBRARIES} ${ITK_LIBRARIES} Mask)

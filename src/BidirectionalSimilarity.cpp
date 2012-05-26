@@ -14,6 +14,8 @@
 #include "Paint.h"
 #include "PatchMatch.h"
 
+#include "Mask/ITKHelpers/Helpers/Helpers.h"
+
 #include "header.h"
 
 void Heal::apply(Image imageIn, Image mask,
@@ -23,15 +25,21 @@ void Heal::apply(Image imageIn, Image mask,
   mask.WriteMask("mask.png");
 
   // Smoothly fill the hole
-  Image image(imageIn.width, imageIn.height, 1, imageIn.channels);
-  image.CopyData(Inpaint::apply(imageIn, mask));
+//   Image image(imageIn.width, imageIn.height, 1, imageIn.channels);
+//   image.CopyData(Inpaint::apply(imageIn, mask));
+// 
+//   image.WritePNG("image_smooth_filled.png");
+// 
+//   Image out(image.width, image.height, 1, image.channels);
+//   out.CopyData(image);
+  //out.Zero();
 
-  image.WritePNG("image_smooth_filled.png");
+  Image image(imageIn.width, imageIn.height, 1, imageIn.channels);
+  image.CopyData(imageIn);
 
   Image out(image.width, image.height, 1, image.channels);
   out.CopyData(image);
-  //out.Zero();
-
+  
   Image patchMatch;
 
   Image initialization = Image(image.width, image.height, 1, image.channels);
@@ -53,7 +61,7 @@ void Heal::apply(Image imageIn, Image mask,
       initialization.CopyData(patchMatch);
     }
 
-    initialization.WriteMeta("initPatchMask.mha");
+    //initialization.WriteMeta("initPatchMask.mha");
     
     patchMatch = PatchMatch::apply(image, image, mask,
                                    numIterPM, patchDiameter, initialization);
@@ -73,7 +81,7 @@ void Heal::apply(Image imageIn, Image mask,
     {
       for(int x = 0; x < image.width; ++x)
       {
-        if(mask(x,y)[0] == 0) // Fill this pixel
+        if(mask(x,y)[0] == 0) // We have come across a pixel to be filled
         {
           out.SetAllComponents(x, y, 0.0f);
 
@@ -81,6 +89,7 @@ void Heal::apply(Image imageIn, Image mask,
 
           unsigned int numberOfContributors = 0;
 
+          // Iterate over the patch centered on this pixel
           for (int dy = -patchDiameter/2; dy <= patchDiameter/2; ++dy)
           {
             if (y+dy < 0)// skip this row
@@ -102,8 +111,9 @@ void Heal::apply(Image imageIn, Image mask,
               {
                 break;
               }
-              else // Update this pixel
+              else // Use a pixel from this patch in the update
               {
+                // (matchX, matchY) is the center of the best matching patch to the patch centered at (x+dx, y+dy)
                 int matchX = (int)patchMatch(x+dx,y+dy)[0];
                 int matchY = (int)patchMatch(x+dx,y+dy)[1];
 
@@ -131,17 +141,13 @@ void Heal::apply(Image imageIn, Image mask,
     out.WriteMeta(ssMeta.str());
 
     std::stringstream ssPNG;
-    ssPNG << "Iteration_" << i << ".png";
+    ssPNG << "Iteration_" << Helpers::ZeroPad(i, 2) << ".png";
     out.WritePNG(ssPNG.str());
 
     // reset for the next iteration
     //image = out;
     //image = out.copy();
     image.CopyData(out);
-
-    std::stringstream ssCheck;
-    ssCheck << "Iteration_" << i << "_reset.png";
-    image.WritePNG(ssCheck.str());
 
     std::cout << "numberOfPixelsFilled: " << numberOfPixelsFilled << std::endl;
   } // end for(int i = 0; i < numIter; i++)
@@ -162,7 +168,8 @@ void Heal::help()
 void Heal::parse(vector<string> args)
 {
   //int numIter = 5;
-  int numIter = 10;
+  //int numIter = 10;
+  int numIter = 50;
   int numIterPM = 5;
   int patchDiameter = 15;
   
